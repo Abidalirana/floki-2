@@ -1,55 +1,55 @@
 
 ======================================
-#--main.py file
-import google.generativeai as genai
-import json
+app.py
 import os
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
 import asyncio
 from typing import List, Dict, Any
+from dotenv import load_dotenv  # <-- fixed import
 
-# --- Gemini API Key Configuration ---
-# It is highly recommended to use environment variables for API keys in production.
-# For this example, the API key is provided directly.
-GEMINI_API_KEY = "api key" 
-genai.configure(api_key=GEMINI_API_KEY)
+from agents import (
+    Agent,
+    Runner,
+    OpenAIChatCompletionsModel,
+    function_tool,
+    set_tracing_disabled,
+)
+from openai import AsyncOpenAI
 
-# --- FastAPI Setup ---
-app = FastAPI(
-    title="Floki AI Agent",
-    description="A friendly and helpful AI bot for FundedFlow, powered by the Gemini API.",
-    version="1.0.0"
+# -----------------
+# Load environment variables first
+# -----------------
+load_dotenv()
+
+# -----------------
+# Gemini API config
+# -----------------
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+API_KEY = os.getenv("GEMINI_API_KEY") or "YOUR_GEMINI_KEY_HERE"
+MODEL_NAME = "gemini-2.0-flash"
+
+if not API_KEY or API_KEY == "YOUR_GEMINI_KEY_HERE":
+    raise ValueError("GEMINI_API_KEY is missing! Set it in your .env file.")
+
+set_tracing_disabled(True)
+
+client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
+
+model_ai = OpenAIChatCompletionsModel(
+    model=MODEL_NAME,
+    openai_client=client,
 )
 
-# Configure CORS to allow requests from all origins
-# This is crucial for the HTML file to be able to talk to the server
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
 
-class ChatRequest(BaseModel):
-    user_query: str
-    chat_history: List[Dict[str, Any]]
-
-class ChatResponse(BaseModel):
-    floki_response: str
-    updated_chat_history: List[Dict[str, Any]]
-
-# --- Floki's Knowledge Base (FundedFlow Modules) ---
-# This function acts as Floki's "tool" to retrieve information about FundedFlow modules.
+# ---------------
+# FundedFlow tools
+# ---------------
+@function_tool
 def get_fundedflow_module_info(module_name: str) -> str:
     """
     Provides detailed information about a specific FundedFlow module.
     """
     module_name_lower = module_name.lower()
-    
+
     modules_data = {
         "7-day reset challenge": {
             "purpose": "Hey there! The **7-Day Reset Challenge** is super important. It's designed to help you bounce back after a tough trading patch. Think of it as hitting the 'reset' button on your mindset. We're all about turning those setbacks into awesome comebacks!",
@@ -85,166 +85,77 @@ def get_fundedflow_module_info(module_name: str) -> str:
 
     if module_name_lower in modules_data:
         data = modules_data[module_name_lower]
-        response = (
+        return (
             f"Alright, let's talk about the **{module_name}**!\n\n"
             f"**Purpose:** {data['purpose']}\n\n"
             f"**How to use it:** {data['how_to_use']}\n\n"
             f"**Why it helps you:** {data['benefits']}"
         )
-        return response
     else:
-        return "Hmm, I can only provide information about FundedFlow's modules: '7-Day Reset Challenge', 'Risk Tracker', 'Trading Journal', 'Recovery Plan Generator', 'Loyalty Program', or 'Trading Simulator'. Which one would you like to know about?"
+        return (
+            "Hmm, I can only provide information about FundedFlow's modules: "
+            "'7-Day Reset Challenge', 'Risk Tracker', 'Trading Journal', "
+            "'Recovery Plan Generator', 'Loyalty Program', or 'Trading Simulator'. "
+            "Which one would you like to know about?"
+        )
 
+
+@function_tool
 def get_fundedflow_overview() -> str:
-    """
-    Provides a general overview of what FundedFlow is.
-    """
     return (
-        "Hey there, future funded trader! FundedFlow is your ultimate dashboard, built just for you. "
-        "It's designed to help you master your mindset, build super disciplined risk habits, and get you "
-        "fully prepared for those real prop firm challenges. Think of it as your personal coach "
-        "and training ground, all in one place! We've got different modules that work together "
-        "to transform your trading journey, focusing on making you more self-aware, consistent, "
-        "and strategically brilliant. Our goal? To help you get funded and stay funded! Let's do this!"
+        "Hey there, future funded trader! FundedFlow is your ultimate dashboard, "
+        "built just for you. It's designed to help you master your mindset, "
+        "build super disciplined risk habits, and get you fully prepared for "
+        "those real prop firm challenges. Think of it as your personal coach "
+        "and training ground, all in one place! We've got different modules that "
+        "work together to transform your trading journey, focusing on making you "
+        "more self-aware, consistent, and strategically brilliant. Our goal? "
+        "To help you get funded and stay funded! Let's do this! 🚀"
     )
 
-# --- Gemini Model Initialization ---
-# Define the tools available to the Gemini model
-tools = [
-    {
-        "function_declarations": [
-            {
-                "name": "get_fundedflow_module_info",
-                "description": "Get information about a specific FundedFlow module.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "module_name": {
-                            "type": "string",
-                            "description": "The name of the FundedFlow module (e.g., '7-Day Reset Challenge', 'Risk Tracker', 'Trading Journal', 'Recovery Plan Generator', 'Loyalty Program', 'Trading Simulator')."
-                        }
-                    },
-                    "required": ["module_name"]
-                }
-            }
-        ]
-    },
-    {
-        "function_declarations": [
-            {
-                "name": "get_fundedflow_overview",
-                "description": "Get a general overview of what FundedFlow is.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {} # No parameters needed for a general overview
-                }
-            }
-        ]
-    }
-]
 
-# Configure the model with the system instruction and tools
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    tools=tools,
-    system_instruction=(
-        "Your name is Floki. You are a friendly, helpful, and super encouraging AI onboarding and support bot for FundedFlow. "
-        "FundedFlow is a private dashboard that helps traders reset their mindset, improve risk habits, and simulate challenges. "
-        "You are informal, easy to understand, and write short messages like a friend. Avoid long, boring paragraphs. "
-        "Always keep your messages concise and to the point, like a quick chat. "
-        "Gently guide traders to the right tool or their next best action. Always encourage, never judge. "
-        "Your primary function is to explain FundedFlow's modules, guide users on how to use them, and provide a general overview of FundedFlow itself. "
-        "You can also answer general questions about trading concepts, but always try to relate them back to how FundedFlow's tools or principles can help. "
-        "For example, if someone asks 'What is risk management?', explain it generally, then add how the Risk Tracker helps with it! "
-        "You can only answer questions related to FundedFlow's modules: '7-Day Reset Challenge', 'Risk Tracker', 'Trading Journal', 'Recovery Plan Generator', 'Loyalty Program', and 'Trading Simulator', or provide a general overview of FundedFlow, AND general trading concepts. "
-        "If a user asks about something completely unrelated to trading or FundedFlow, politely state that you can only help with trading-related topics. "
-        "Remember to use emojis and exclamation points to sound friendly and enthusiastic!"
-    )
+# -----------------
+# Singleton agent
+# -----------------
+agent = Agent(
+    name="Floki AI Agent",
+    instructions="""
+You are Floki — a friendly, super-encouraging AI onboarding & support bot for FundedFlow.
+FundedFlow is a private dashboard that helps traders reset mindset, improve risk habits,
+and simulate challenges.
+
+Be informal, concise, and chat like a friend. Use emojis and exclamation points.
+Guide traders gently to the right tool or next action. Never judge — always cheer them on.
+
+Explain FundedFlow’s modules in detail when asked, and always relate general trading
+questions back to how FundedFlow’s tools can help.
+
+If the question is unrelated to trading or FundedFlow, politely say you can only help
+with trading topics.
+
+Remember: keep it short, fun, and helpful! 💪
+""",
+    model=OpenAIChatCompletionsModel(model=MODEL_NAME, openai_client=client),
+    tools=[get_fundedflow_module_info, get_fundedflow_overview],
 )
 
-# --- Floki Agent Logic (API friendly) ---
-async def run_floki_agent(user_query: str, chat_history: List[Dict[str, Any]]):
+# -------------------------------------------------
+# Public helper: run the agent on a message/history
+# -------------------------------------------------
+async def run_floki_agent(
+    user_query: str, chat_history: List[Dict[str, Any]]
+) -> tuple[str, List[Dict[str, Any]]]:
     """
-    Simulates Floki's interaction with a user query using the Gemini API,
-    maintaining chat history, now within an async context for FastAPI.
+    Returns (response_text, updated_history)
     """
-    messages = [
-        {"role": "user", "parts": [user_query]}
-    ]
-    # Reformat the history for the model
-    formatted_history = []
-    for chat in chat_history:
-        formatted_history.append({"role": chat['role'], "parts": [{"text": chat['parts'][0]['text']}]})
-    
-    # Append new user message to history for the model
-    formatted_history.append({"role": "user", "parts": [{"text": user_query}]})
+    history = chat_history + [{"role": "user", "content": user_query}]
+    result = await Runner.run(agent, history)
+    updated_history = history + [{"role": "model", "content": result.final_output}]
+    return result.final_output, updated_history
 
-    try:
-        response = await model.generate_content_async(formatted_history)
 
-        if response.candidates and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.function_call:
-                    function_call = part.function_call
-                    function_name = function_call.name
-                    function_args = {k: v for k, v in function_call.args.items()}
 
-                    if function_name == "get_fundedflow_module_info":
-                        function_response_content = get_fundedflow_module_info(
-                            module_name=function_args.get("module_name")
-                        )
-                    elif function_name == "get_fundedflow_overview":
-                        function_response_content = get_fundedflow_overview()
-                    else:
-                        function_response_content = "Floki doesn't have a tool for that."
-
-                    formatted_history.append(
-                        {
-                            "role": "function",
-                            "name": function_name,
-                            "parts": [{"text": function_response_content}]
-                        }
-                    )
-                    second_response = await model.generate_content_async(formatted_history)
-                    floki_final_response = second_response.text
-                    formatted_history.append({"role": "model", "parts": [{"text": floki_final_response}]})
-                    return floki_final_response, formatted_history
-            
-            floki_final_response = response.text
-            formatted_history.append({"role": "model", "parts": [{"text": floki_final_response}]})
-            return floki_final_response, formatted_history
-        else:
-            return "Floki couldn't generate a response. Please try again.", formatted_history
-
-    except genai.types.BlockedPromptException as e:
-        return f"Floki is unable to respond to that query. (Blocked: {e.response.prompt_feedback.block_reason})", formatted_history
-    except Exception as e:
-        return f"Oops! Floki encountered an unexpected issue. (Error: {e})", formatted_history
-
-# --- FastAPI Endpoint ---
-@app.get("/")
-def read_root():
-    """
-    A simple root endpoint to confirm the server is running.
-    """
-    return {"message": "Welcome to Floki AI Agent! The server is running."}
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """
-    Endpoint for conversing with the Floki AI Agent.
-    """
-    floki_response, updated_history = await run_floki_agent(request.user_query, request.chat_history)
-    return ChatResponse(floki_response=floki_response, updated_chat_history=updated_history)
-
-# --- How to run the API ---
-if __name__ == "__main__":
-    # To run the FastAPI server, you need to have `uvicorn` installed.
-    # From your terminal, run:
-    # `uvicorn your_filename_without_py:app --reload`
-    # (replace `your_filename_without_py` with the name of this file)
-    print("Starting FastAPI server...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+asyncio.run(run_floki_agent())
 
 ================================================================================================
 # -- index.html
