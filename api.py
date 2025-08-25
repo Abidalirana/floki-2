@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
-from floki_agent import run_floki_agent
+from app import run_floki_agent
 
 # -----------------
 # FastAPI setup
@@ -44,11 +44,10 @@ def root():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
-    response_text, updated_history = await run_floki_agent(
-        request.user_query, request.chat_history
-    )
+    response_text = await run_floki_agent(request.user_query)
     return ChatResponse(
-        floki_response=response_text, updated_chat_history=updated_history
+        floki_response=response_text,
+        updated_chat_history=[]  # always empty
     )
 
 # -----------------
