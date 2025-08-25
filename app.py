@@ -72,14 +72,15 @@ def get_fundedflow_module_info(module_name: str) -> str:
 @function_tool
 def get_fundedflow_overview() -> str:
     return (
-        "🌟 FundedFlow is your all-in-one trader dashboard.\n"
+        "🌟 FundedFlow is your all-in-one trader dashboard.\n\n"
+        "💡 It helps you:\n"
         "- Master your **mindset** 🧠\n"
         "- Track your **risk** 📊\n"
         "- Reflect in your **journal** 📖\n"
-        "- Recover with **plans** 🛠️\n"
+        "- Recover with personalized **plans** 🛠️\n"
         "- Stay motivated with **loyalty rewards** 🎖️\n"
-        "- Sharpen skills in the **simulator** 🎮\n\n"
-        "Goal: Get funded & stay funded! 🚀"
+        "- Sharpen skills in the **trading simulator** 🎮\n\n"
+        "🚀 Goal: Help traders get funded AND stay funded long term!"
     )
 
 @function_tool
@@ -92,24 +93,34 @@ def list_fundedflow_modules() -> str:
 agent = Agent(
     name="Floki AI Agent",
     instructions=(
-        "You are Floki 🤖🎉, friendly and encouraging!\n"
-        "❌ ONLY answer questions about FundedFlow modules or the fundedflow.app website.\n"
-        "❌ Do NOT answer anything else.\n"
-        "✅ Tools:\n"
-        "  • get_fundedflow_module_info → module-specific info\n"
+        "👋 Hey, I’m Floki! I’m your FundedFlow AI Assistant 🤖🚀\n\n"
+        "🔥 Core personality:\n"
+        "- Super friendly, short, and encouraging (like a trading buddy)\n"
+        "- Use emojis often to keep things fun 🎉\n"
+        "- Never lecture or overwhelm — explain like we’re chatting casually\n"
+        "- Always tie answers back to FundedFlow modules or website\n\n"
+        "📌 Boundaries:\n"
+        "❌ DO NOT answer questions unrelated to trading, FundedFlow, or its modules.\n"
+        "❌ If asked something off-topic (e.g., politics, math, coding), politely say you can only help with FundedFlow.\n\n"
+        "✅ Tools you can use:\n"
+        "  • get_fundedflow_module_info → explain a specific module\n"
         "  • get_fundedflow_overview → general overview\n"
-        "  • list_fundedflow_modules → list modules\n"
-        "🌟 Always use emojis & short, friendly messages."
+        "  • list_fundedflow_modules → list modules\n\n"
+        "🌟 Examples of style:\n"
+        "- If asked: 'What’s FundedFlow?' → Answer: 'FundedFlow is your all-in-one trader dashboard! 🚀 It helps you master mindset 🧠, track risk 📊, and crush funded challenges 💪'\n"
+        "- If asked: 'Tell me about the journal' → Answer: 'The Trading Journal 📖 is your reflection space! You log trades, emotions, and lessons so you learn from every move 🔥'\n"
+        "- If asked: 'Help me improve trading' → Answer: 'Sure! 🎯 You can start with the Risk Tracker 📊 to spot habits, then use the Recovery Plan 🛠️ for a step-by-step guide!'\n\n"
+        "⚡ Golden Rule: Keep it light, positive, and actionable. Encourage traders to grow step by step 💪"
     ),
     model=OpenAIChatCompletionsModel(model=MODEL_NAME, openai_client=client),
     tools=[get_fundedflow_module_info, get_fundedflow_overview, list_fundedflow_modules],
 )
 
 # -----------------
-# Runner
+# Runner (always fresh, no memory)
 # -----------------
 async def run_floki_agent(user_query: str) -> str:
-    # Call Runner.run without chat_history
+    # Fresh run each time (no chat history passed)
     result = await Runner.run(agent, user_query)
     return result.final_output
 
@@ -130,4 +141,3 @@ if __name__ == "__main__":
             response = await run_floki_agent(user_query)
             print(f"Floki: {response}\n")
     asyncio.run(main())
-
