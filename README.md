@@ -1,307 +1,324 @@
+mahad-floki/
+│
+├── .venv/                  # Virtual environment (ignore in git)
+├── __pycache__/            # Python cache (ignore in git)
+│
+├── .env                    # API keys & secrets
+├── .gitignore              # Ignore rules (venv, __pycache__, etc.)
+├── .python-version         # Python version
+├── pyproject.toml          # Project config (dependencies, build)
+├── requirements.txt        # Explicit deps (for pip users)
+├── uv.lock                 # Lock file for uv
+│
+├── README.md               # Docs
+│
+├── app.py                  # App entry (FastAPI/Flask)
+├── api.py                  # API routes & endpoints
+---- uv lock 
 
 
-
-======================================
+=====================================================================================================================================================================================================================================================================
 app.py
+# floki_agent.py
 import os
 import asyncio
-from typing import List, Dict, Any
-from dotenv import load_dotenv  # <-- fixed import
-
-from agents import (
-    Agent,
-    Runner,
-    OpenAIChatCompletionsModel,
-    function_tool,
-    set_tracing_disabled,
-)
+from dotenv import load_dotenv
+from agents import Agent, Runner, OpenAIChatCompletionsModel, function_tool, set_tracing_disabled
 from openai import AsyncOpenAI
 
 # -----------------
-# Load environment variables first
+# Load environment
 # -----------------
 load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY missing in .env file!")
 
-# -----------------
-# Gemini API config
-# -----------------
-BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-API_KEY = os.getenv("GEMINI_API_KEY") or "YOUR_GEMINI_KEY_HERE"
 MODEL_NAME = "gemini-2.0-flash"
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+client = AsyncOpenAI(base_url=BASE_URL, api_key=GEMINI_API_KEY)
+set_tracing_disabled(disabled=True)
 
-if not API_KEY or API_KEY == "YOUR_GEMINI_KEY_HERE":
-    raise ValueError("GEMINI_API_KEY is missing! Set it in your .env file.")
+# -----------------
+# Formatter Class
+# -----------------
+class DotFormatter:
+    @staticmethod
+    def format_list(items: list[str]) -> str:
+        return "\n".join([f". {item}" for item in items])
 
-set_tracing_disabled(True)
+    @staticmethod
+    def format_module(name: str, purpose: str, how_to_use: str, benefits: str) -> str:
+        return DotFormatter.format_list([
+            f"{name.title()}",
+            f"Purpose: {purpose}",
+            f"How to use: {how_to_use}",
+            f"Benefits: {benefits}"
+        ])
 
-client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
+# -----------------
+# FundedFlow Modules
+# -----------------
+MODULES_DATA = {
+    "7-day reset challenge": {
+        "purpose": "Helps reset mindset after tough trading patches",
+        "how_to_use": "Follow daily prompts for 7 days",
+        "benefits": "Builds mental strength & focus",
+    },
+    "risk tracker": {
+        "purpose": "Track risk habits & trading patterns",
+        "how_to_use": "Log trades, emotions & analyze",
+        "benefits": "Improves discipline & consistency",
+    },
+    "trading journal": {
+        "purpose": "Reflect on trades",
+        "how_to_use": "Log trades & review patterns",
+        "benefits": "Boosts decision-making & self-awareness",
+    },
+    "recovery plan generator": {
+        "purpose": "Create personalized improvement plans",
+        "how_to_use": "Generates PDF reports",
+        "benefits": "Clear next steps & growth",
+    },
+    "loyalty program": {
+        "purpose": "Rewards consistent discipline",
+        "how_to_use": "Earn points & unlock perks",
+        "benefits": "Keeps you motivated",
+    },
+    "trading simulator": {
+        "purpose": "Practice strategies risk-free",
+        "how_to_use": "Simulate trades & analyze results",
+        "benefits": "Sharpen skills & confidence",
+    },
+}
 
-model_ai = OpenAIChatCompletionsModel(
-    model=MODEL_NAME,
-    openai_client=client,
-)
-
-
-# ---------------
-# FundedFlow tools
-# ---------------
+# -----------------
+# Tools
+# -----------------
 @function_tool
 def get_fundedflow_module_info(module_name: str) -> str:
-    """
-    Provides detailed information about a specific FundedFlow module.
-    """
-    module_name_lower = module_name.lower()
-
-    modules_data = {
-        "7-day reset challenge": {
-            "purpose": "Hey there! The **7-Day Reset Challenge** is super important. It's designed to help you bounce back after a tough trading patch. Think of it as hitting the 'reset' button on your mindset. We're all about turning those setbacks into awesome comebacks!",
-            "how_to_use": "It's really straightforward! When you start, you'll see just Day 1. No peeking ahead, okay? Each day gives you a cool mindset prompt (could be text, a quote, or even a video!) and a spot for you to write down your thoughts – that's your reflection. Once you finish that, boom! Day 2 unlocks. There's a little progress bar to cheer you on. Just keep coming back daily, and you'll build incredible mental strength!",
-            "benefits": "This challenge is a game-changer for your mental game. It helps you reset your focus, rebuild your discipline, and get that strong mindset back. By taking it one day at a time, you build consistency without feeling overwhelmed. You got this!"
-        },
-        "risk tracker": {
-            "purpose": "Alright, let's talk about the **Risk Tracker**! This module is all about helping you become a pro at managing risk and truly understanding your trading habits. It's not just about numbers; it's about making smarter choices!",
-            "how_to_use": "You'll use a 'Trade Entry Form' to jot down details for each trade. Things like what you traded (the instrument), your entry and exit prices, how much you risked (your account risk percentage), and what you expected to gain (your Reward:Risk ratio). The cool part? You also tag your emotions during the trade! Then, the dashboard lights up with awesome visuals: charts showing your daily drawdown, how your R:R changes over time, and even a heatmap of your emotions. You can filter all this by date, emotion, or instrument to really zoom in on your patterns. Super helpful!",
-            "benefits": "This tracker gives you crystal-clear visuals of your risk habits. You'll quickly see if you're risking too much, understand your R:R better, and discover how your feelings affect your trades. It's absolutely key for building that consistent, disciplined trading style. No more guessing!"
-        },
-        "trading journal": {
-            "purpose": "The **Trading Journal** is your personal secret weapon for self-awareness! This one is less about the cold, hard numbers and more about your feelings and thoughts. It helps you log your trading behavior, track those emotional ups and downs, and review your decisions. It's all about building consistency and understanding *you* better.",
-            "how_to_use": "It's like your personal diary for trading! You'll fill out a form with the trade date, what you traded, if it was a Long or Short, your setup name (like 'Breakout' or 'Pullback'), prices, and your profit/loss. The best part? You record your emotion *before* you entered the trade and *after* you exited, plus your confidence level (1-5 stars). There's also a 'What I learned' section – super important! You can even add screenshots. All your entries show up in a 'Journal Feed' that you can filter. And get this: there's a 'Weekly Review Screen' that gives you a quick summary of your trades, common emotions, and even prompts you to reflect on what you'll do differently next week. How cool is that?",
-            "benefits": "This journal really helps you dig deep into your trading psychology. You'll understand the emotional impact of your trades, spot your personal patterns, and constantly learn and grow through your own reflections. It's a powerful way to improve your decision-making and stay consistent."
-        },
-        "recovery plan generator": {
-            "purpose": "Okay, the **Recovery Plan Generator** is like having your own personal trading coach right here! Its job is to look at *all* your trading data from the Reset, Journal, Risk Tracker, and Simulator, and then create a super personalized improvement plan just for you. It's your roadmap to getting ready for your next big challenge!",
-            "how_to_use": "It's pretty smart! The system automatically pulls in all your info – like if you skipped any Reset days, what you wrote in your journal, your risk numbers, and why you might have struggled in the simulator. Then, it cooks up a 'Recovery Plan' report. This report will clearly show you 3 key areas you need to focus on (like 'Emotional discipline' or 'Over-risking'). It explains *why* these areas are important for *you*, gives you clear 'Next Steps' with daily practices, and even links to helpful resources. You can download it as a PDF, and you can even regenerate it anytime you've added new data. It's always adapting to help you!",
-            "benefits": "This plan is totally tailor-made for you, directly tackling your specific weaknesses. It takes all your past performance and turns it into actionable steps. This is how you build a rock-solid foundation for future trading success. No more guessing what to work on!"
-        },
-        "loyalty program": {
-            "purpose": "Alright, listen up! The **Loyalty Program** is your very own trader XP (Experience Points) system right here in FundedFlow! It's all about rewarding you for being smart and disciplined. Imagine getting points for *not* overtrading – pretty sweet, right?",
-            "how_to_use": "You earn points for doing all the good stuff in the app! Things like finishing a day in the 7-Day Reset (+10 points), logging a trade with all those important emotion tags (+5 points), reviewing your trades with notes (+10 points), sticking to a risk rule for 3 days straight (+15 points), crushing a full simulation (+25 points), and generating your Recovery Plan (+10 points). As you rack up XP, you'll level up (we've got cool titles like 'Tilt Survivor' and 'Risk Samurai'!) and earn special badges for hitting milestones. And guess what? These points can even unlock awesome rewards like extra simulator credits or one-on-one audit sessions! How cool is that?",
-            "benefits": "This program makes your trading journey fun and rewarding! It motivates you to consistently use the tools that build great habits, which means less emotional trading and more consistency. It's all about celebrating your growth, not just your profits!"
-        },
-        "trading simulator": {
-            "purpose": "Okay, the **Trading Simulator** is your ultimate playground for practice! It's a super realistic environment where you can practice for those big prop firm challenges (like FTMO, MFF, The Funded Trader, The5ers) without risking a single penny of real money. It's perfect for honing your risk management, testing out your strategies, and truly seeing if you're ready – or if those emotions are still getting in the way!",
-            "how_to_use": "It's easy to get started! Just hit 'Start New Sim,' set your initial balance (maybe $10,000 to start?), pick a risk profile (aggressive, balanced, or conservative), and define your rules like daily loss limits, max total drawdown, your profit target, and how long you want the sim to run. Then, you just log each trade within the simulator. It keeps track of your profit/loss, catches any rule violations, monitors how often you trade, your lot sizing, and even those pre/post emotion tags. When you're done, you get a detailed pass/fail report! It breaks down *why* you failed (if you did), your emotional patterns, any trading errors (like revenge trades), and even gives you suggestions from me, Floki! You can retry as many times as you need and adjust the rules to keep learning.",
-            "benefits": "This is a zero-risk zone to sharpen your skills, test your strategies under real-world pressure, and build serious confidence. It's designed to help you avoid those expensive mistakes in real funded challenges by letting you learn and adapt in a safe, simulated environment. Practice makes perfect, trader!"
-        }
-    }
-
-    if module_name_lower in modules_data:
-        data = modules_data[module_name_lower]
-        return (
-            f"Alright, let's talk about the **{module_name}**!\n\n"
-            f"**Purpose:** {data['purpose']}\n\n"
-            f"**How to use it:** {data['how_to_use']}\n\n"
-            f"**Why it helps you:** {data['benefits']}"
-        )
-    else:
-        return (
-            "Hmm, I can only provide information about FundedFlow's modules: "
-            "'7-Day Reset Challenge', 'Risk Tracker', 'Trading Journal', "
-            "'Recovery Plan Generator', 'Loyalty Program', or 'Trading Simulator'. "
-            "Which one would you like to know about?"
-        )
-
+    module = MODULES_DATA.get(module_name.lower())
+    if not module:
+        return DotFormatter.format_list([
+            f"I only know these modules: {', '.join(MODULES_DATA.keys())}",
+            "Pick one!"
+        ])
+    return DotFormatter.format_module(
+        module_name,
+        module["purpose"],
+        module["how_to_use"],
+        module["benefits"]
+    )
 
 @function_tool
 def get_fundedflow_overview() -> str:
-    return (
-        "Hey there, future funded trader! FundedFlow is your ultimate dashboard, "
-        "built just for you. It's designed to help you master your mindset, "
-        "build super disciplined risk habits, and get you fully prepared for "
-        "those real prop firm challenges. Think of it as your personal coach "
-        "and training ground, all in one place! We've got different modules that "
-        "work together to transform your trading journey, focusing on making you "
-        "more self-aware, consistent, and strategically brilliant. Our goal? "
-        "To help you get funded and stay funded! Let's do this! 🚀"
+    return DotFormatter.format_list([
+        "FundedFlow is your all-in-one trader dashboard",
+        "Master your mindset",
+        "Track your risk",
+        "Reflect in your journal",
+        "Recover with personalized plans",
+        "Stay motivated with loyalty rewards",
+        "Sharpen skills in the trading simulator",
+        "Goal: Help traders get funded AND stay funded long term"
+    ])
+
+@function_tool
+def list_fundedflow_modules() -> str:
+    return DotFormatter.format_list(
+        ["Modules available:"] + list(MODULES_DATA.keys())
     )
 
-
 # -----------------
-# Singleton agent
+# Agent
 # -----------------
 agent = Agent(
     name="Floki AI Agent",
-    instructions="""
-You are Floki — a friendly, super-encouraging AI onboarding & support bot for FundedFlow.
-FundedFlow is a private dashboard that helps traders reset mindset, improve risk habits,
-and simulate challenges.
-
-Be informal, concise, and chat like a friend. Use emojis and exclamation points.
-Guide traders gently to the right tool or next action. Never judge — always cheer them on.
-
-Explain FundedFlow’s modules in detail when asked, and always relate general trading
-questions back to how FundedFlow’s tools can help.
-
-If the question is unrelated to trading or FundedFlow, politely say you can only help
-with trading topics.
-
-Remember: keep it short, fun, and helpful! 💪
-""",
+    instructions=(
+        "Hey, I’m Floki! I’m your FundedFlow AI Assistant\n\n"
+        "Core personality:\n"
+        ". Super friendly, short, and encouraging (like a trading buddy)\n"
+        ". Never lecture or overwhelm — explain like we’re chatting casually\n"
+        ". Always tie answers back to FundedFlow modules or website\n\n"
+        "Formatting Rules:\n"
+        ". Always format output in dot-style (.)\n"
+        ". Keep each point short and clear\n"
+        ". Avoid long paragraphs unless absolutely necessary\n\n"
+        "Boundaries:\n"
+        ". DO NOT answer questions unrelated to trading, FundedFlow, or its modules\n"
+        ". If asked something off-topic (e.g., politics, math, coding), politely say you can only help with FundedFlow\n\n"
+        "Examples of style:\n"
+        ". If asked: 'What’s FundedFlow?' →\n"
+        "  . FundedFlow is your all-in-one trader dashboard\n"
+        "  . It helps you master mindset, track risk, and crush funded challenges\n"
+        "  . Goal: Help you stay funded long-term\n"
+        ". If asked: 'Tell me about the journal' →\n"
+        "  . The Trading Journal is your reflection space\n"
+        "  . Log trades, emotions, and lessons\n"
+        "  . Learn from every move\n\n"
+        "Golden Rule: Keep it light, positive, actionable, and in dot-style"
+    ),
     model=OpenAIChatCompletionsModel(model=MODEL_NAME, openai_client=client),
-    tools=[get_fundedflow_module_info, get_fundedflow_overview],
+    tools=[get_fundedflow_module_info, get_fundedflow_overview, list_fundedflow_modules],
 )
 
-# -------------------------------------------------
-# Public helper: run the agent on a message/history
-# -------------------------------------------------
-async def run_floki_agent(
-    user_query: str, chat_history: List[Dict[str, Any]]
-) -> tuple[str, List[Dict[str, Any]]]:
-    """
-    Returns (response_text, updated_history)
-    """
-    history = chat_history + [{"role": "user", "content": user_query}]
-    result = await Runner.run(agent, history)
-    updated_history = history + [{"role": "model", "content": result.final_output}]
-    return result.final_output, updated_history
+# -----------------
+# Runner (always fresh, no memory)
+# -----------------
+async def run_floki_agent(user_query: str) -> str:
+    result = await Runner.run(agent, user_query)
+    return result.final_output
 
-
-
-asyncio.run(run_floki_agent())
-
-================================================================================================
-# -- index.html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Floki AI Chatbot</title>
-    <!-- Tailwind CSS CDN for easy styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
-</head>
-<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
-    <div class="flex flex-col w-full max-w-2xl bg-slate-800 rounded-xl shadow-lg h-[90vh]">
+# -----------------
+# Terminal entry
+# -----------------
+if __name__ == "__main__":
+    async def main():
+        print(". Welcome! I’m Floki, your FundedFlow AI Assistant")
+        print(". Ask me about FundedFlow modules, overviews, or how things work!")
+        print(". Type 'exit' anytime to quit.\n")
         
-        <!-- Header -->
-        <header class="p-6 border-b border-slate-700">
-            <h1 class="text-3xl font-bold text-teal-400">Floki AI Chatbot</h1>
-            <p class="text-slate-400 mt-1">Chat with Floki, your friendly FundedFlow assistant!</p>
-        </header>
+        while True:
+            user_query = input("You: ")
+            if user_query.lower() in ["exit", "quit"]:
+                print(". Bye!")
+                break
+            response = await run_floki_agent(user_query)
+            print(f"Floki:\n{response}\n")
+    asyncio.run(main())
 
-        <!-- Chat messages container -->
-        <main id="chat-box" class="flex-grow p-6 overflow-y-auto space-y-4">
-            <!-- Initial welcome message from Floki -->
-            <div class="flex justify-start">
-                <div class="bg-slate-700 text-white p-4 rounded-xl max-w-sm">
-                    <p class="font-medium text-teal-300">Floki</p>
-                    <p class="mt-1">Hey there, future funded trader! How can I help you today? I'm here to answer questions about FundedFlow's modules and general trading concepts. Let's get started! 💪</p>
-                </div>
-            </div>
-        </main>
 
-        <!-- Input and send button -->
-        <div class="p-4 border-t border-slate-700 flex items-center gap-2">
-            <input type="text" id="user-input" placeholder="Ask Floki a question..."
-                   class="flex-grow p-3 rounded-lg bg-slate-700 border-2 border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:border-teal-400 transition-colors">
-            <button id="send-button"
-                    class="bg-teal-500 text-white font-bold p-3 rounded-lg hover:bg-teal-400 transition-colors shadow-md">
-                Send
-            </button>
-        </div>
+==========================================================================================================================================v==============================================================================================================================
+02 ----  api.py 
 
-    </div>
+"""
+FastAPI application.
+Imports the agent from floki_agent.py and exposes endpoints.
+"""
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const chatBox = document.getElementById('chat-box');
-            const userInput = document.getElementById('user-input');
-            const sendButton = document.getElementById('send-button');
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Dict, Any
 
-            // IMPORTANT: This API URL must match the host and port of your FastAPI server
-            const API_URL = "http://127.0.0.1:8000/chat";
-            let chatHistory = []; // Initialize empty chat history
+from app import run_floki_agent
 
-            /**
-             * Appends a message to the chat box.
-             * @param {string} sender - The sender of the message ('user' or 'floki').
-             * @param {string} text - The content of the message.
-             */
-            function appendMessage(sender, text) {
-                const messageDiv = document.createElement('div');
-                const isUser = sender === 'user';
-                messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+# -----------------
+# FastAPI setup
+# -----------------
+app = FastAPI(title="Floki AI Agent", version="1.0.0")
 
-                const messageContent = document.createElement('div');
-                messageContent.className = `p-4 rounded-xl max-w-sm ${isUser ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white'}`;
-                
-                if (!isUser) {
-                    const senderName = document.createElement('p');
-                    senderName.className = 'font-medium text-teal-300';
-                    senderName.textContent = 'Floki';
-                    messageContent.appendChild(senderName);
-                }
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
-                const messageText = document.createElement('p');
-                messageText.className = isUser ? '' : 'mt-1';
-                messageText.innerHTML = text.replace(/\n/g, '<br>'); // Handle newlines
-                
-                messageContent.appendChild(messageText);
-                messageDiv.appendChild(messageContent);
-                chatBox.appendChild(messageDiv);
-                
-                // Scroll to the bottom of the chat box
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
+# -----------------
+# Request/response
+# -----------------
+class ChatRequest(BaseModel):
+    user_query: str
+    chat_history: List[Dict[str, Any]] = []
 
-            /**
-             * Handles sending a message to the Floki API.
-             */
-            async function sendMessage() {
-                const userQuery = userInput.value.trim();
-                if (!userQuery) return;
+class ChatResponse(BaseModel):
+    floki_response: str
+    updated_chat_history: List[Dict[str, Any]]
 
-                // Display user message immediately
-                appendMessage('user', userQuery);
-                userInput.value = ''; // Clear the input field
+# -----------------
+# Endpoints
+# -----------------
+@app.get("/")
+def root():
+    return {"message": "Floki AI Agent is running!"}
 
-                try {
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            user_query: userQuery,
-                            chat_history: chatHistory
-                        })
-                    });
+@app.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    response_text = await run_floki_agent(request.user_query)
+    return ChatResponse(
+        floki_response=response_text,
+        updated_chat_history=[]  # always empty
+    )
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+# -----------------
+# Run server (dev)
+# -----------------
+if __name__ == "__main__":
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
 
-                    const data = await response.json();
-                    
-                    // Display Floki's response
-                    appendMessage('floki', data.floki_response);
-                    
-                    // Update chat history for the next turn
-                    chatHistory = data.updated_chat_history;
+    ==================================================== ==================================================== ==================================================== ==================================================== ==================================================== ====================================================
 
-                } catch (error) {
-                    console.error('Error:', error);
-                    appendMessage('floki', "Oops! It looks like I'm having trouble connecting to the server. Please make sure the FastAPI server is running. 🤔");
-                }
-            }
 
-            // Event listener for the Send button
-            sendButton.addEventListener('click', sendMessage);
+Here’s the proper requirements.txt:
 
-            // Event listener for the Enter key on the input field
-            userInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    sendMessage();
-                }
-            });
-        });
-    </script>
-</body>
-</html>
-=======================================================================
+fastapi>=0.116.1
+openai-agents>=0.2.9
+python-dotenv>=1.1.1
+uvicorn>=0.35.0
+
+Notes:
+
+. No need to add Python version here (that’s handled in pyproject.toml)
+. requirements.txt is useful for pip users or deployment platforms (Heroku, Docker, etc.)
+. If you want exact locked versions (instead of >=), you can freeze with:
+
+pip freeze > requirements.txt
+
+ ==================================================== ==================================================== ==================================================== ==================================================== ==================================================== ====================================================
+
+
+try first  
+python -m pip freeze > requirements.txt
+
+
+then is nide copy paste this 
+
+annotated-types==0.7.0
+anyio==4.10.0
+attrs==25.3.0
+certifi==2025.8.3
+charset-normalizer==3.4.3
+click==8.2.1
+colorama==0.4.6
+distro==1.9.0
+fastapi==0.116.1
+griffe==1.12.1
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+httpx-sse==0.4.1
+idna==3.10
+jiter==0.10.0
+jsonschema==4.25.1
+jsonschema-specifications==2025.4.1
+mcp==1.13.1
+openai==1.101.0
+openai-agents==0.2.9
+pydantic==2.11.7
+pydantic-settings==2.10.1
+pydantic_core==2.33.2
+python-dotenv==1.1.1
+python-multipart==0.0.20
+pywin32==311
+referencing==0.36.2
+requests==2.32.5
+rpds-py==0.27.0
+sniffio==1.3.1
+sse-starlette==3.0.2
+starlette==0.47.3
+tqdm==4.67.1
+types-requests==2.32.4.20250809
+typing-inspection==0.4.1
+typing_extensions==4.14.1
+urllib3==2.5.0
+uvicorn==0.35.0
+
+
+==================================================== ==================================================== ==================================================== ==================================================== ==================================================== ====================================================
+
+
+
+
